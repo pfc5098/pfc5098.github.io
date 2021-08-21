@@ -1,2 +1,5 @@
+---
+output: github_document
+---
 
 A repo to host my personal website.

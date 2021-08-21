@@ -1,7 +1,6 @@
 ---
-title: "Test"
-author: "Peng Chen"
-date: "8/20/2021"
+title: "Peng Chen"
 output: html_document
 ---
 
+# [Resume](docs/Resume_Peng_Chen.pdf)
