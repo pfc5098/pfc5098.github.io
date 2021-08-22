@@ -1,6 +1,10 @@
 ---
-title: "Peng Chen"
-output: html_document
+title: Peng Chen
+output: 
+  html_document:
+    theme: darkly
 ---
 
-# [Resume](docs/Resume_Peng_Chen.pdf)
+------------------------------------------------------------------------
+
+Hi there, welcome! My names is Peng, and I work in the Life Sciences industry. In my spare time, I like to explore recent advances in the data science, AI/ML, and programming world. If you want to know more about me, you you can find my resume [here](docs/Resume_Peng_Chen.pdf).
