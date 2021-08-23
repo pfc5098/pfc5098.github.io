@@ -1,0 +1,200 @@
+---
+title: Explore Demographic Empolyment Data with Julia Silge
+output:
+  html_document:
+    theme: darkly
+editor_options: 
+  chunk_output_type: console
+---
+
+#### [Peng Chen](/index.html)
+#### 2021-03-03
+
+This is a summary based on Julia Silge's screencast, [Explore demographic employment data with k-means](https://www.youtube.com/watch?v=opHDQzhO5Fw&t=184s). 
+Some highlights are:
+
+* Functional programming with the {purrr} package
+* Tidy model outputs with the {broom} package
+* List-column
+* Convert ggplot objects to interactive plotly objects with the {plotly} package
+
+# Pull the Data
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+
+employed <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-02-23/employed.csv")
+employed %>% glimpse()
+```
+
+# Clean the Data
+
+Define a helper function
+
+```{r}
+show_column_elements <- function(data, var) {
+  var <- enexpr(var)
+  data %>% pull(!!var) %>% unique() %>% sort()
+}
+```
+
+and run
+
+```{r, eval=FALSE}
+employed %>% show_column_elements(industry)
+
+employed %>% show_column_elements(major_occupation)
+
+employed %>% show_column_elements(minor_occupation)
+
+employed %>% show_column_elements(race_gender)
+
+skimr::skim(employed)
+```
+
+You will see why we need to clean the data as follows.
+
+```{r}
+employed <- employed %>% 
+  filter(
+    !industry %in% c(show_column_elements(employed, race_gender), NA)
+  ) %>% 
+  mutate(
+    industry = case_when(
+      industry == "Mining, quarrying, and\r\noil and gas extraction" ~
+        "Mining, quarrying, and oil and gas extraction",
+      TRUE ~ industry
+    ),
+    minor_occupation = case_when(
+      minor_occupation == "Manage-ment, business, and financial operations occupations" ~
+        "Management, business, and financial operations occupations",
+      TRUE ~ minor_occupation
+    )
+  )
+```
+
+# Aggregate the Data
+
+Use industry and minor_occupation to define occupation, group the data by occupation and race_gender, and compute the average number of employees in 2015-2020 for each group.
+
+```{r message=FALSE}
+library(glue)
+
+employed_aggregated <- employed %>% 
+  group_by(
+    occupation = glue("{industry} | {minor_occupation}"),
+    race_gender
+  ) %>%
+  summarise(n = mean(employ_n)) %>%
+  ungroup()
+
+employed_aggregated
+```
+
+# Preprocess the Data for Clustering
+
+Say we are interested in demographic groups "Black or African American", "Asian", and "Women", and filter the data by these groups. Then, we put the data into a wide format, filter out some minority occupations, and compute the demographic distribution for each remaining occupation.
+
+```{r}
+employment_wide <- employed_aggregated %>% 
+  filter(
+    race_gender %in% c("Black or African American", "Asian", "Women", "TOTAL"),
+  ) %>%
+  pivot_wider(names_from = race_gender, values_from = n, values_fill = 0) %>% 
+  janitor::clean_names() %>% 
+  select(occupation, black_or_african_american, asian, women, total) %>% 
+  filter(total > 1e4) %>% 
+  mutate(
+    across(c(-occupation, -total), ~ .x / total)
+  )
+
+employment_wide
+```
+
+Now, we can already gain some insights by sorting the data by your demographic group of interest. For example
+
+```{r}
+library(DT)
+
+employment_wide %>%
+  arrange(-asian) %>%
+  datatable(
+    options = list(
+      pageLength = 5,
+      columnDefs = list(list(className = 'dt-center', targets = 2:5))
+    )
+  ) %>%
+  formatRound(columns = c("black_or_african_american", "asian", "women"), digits = 2) %>%
+  formatRound(columns = c("total"), digits = 0)
+```
+
+Next, we scale the data (for numerical reasons) to get it ready for k-means clustering.
+
+```{r}
+employed_transformed <- employment_wide %>% 
+  mutate(
+    across(where(is.numeric), ~ scale(.x) %>% as.numeric())
+  )
+```
+
+# K-Means Clustering
+
+We use the following plot to determine that 5 clusters will be used for the k-means algorithm
+
+```{r}
+library(broom)
+
+tibble(k = 1:20) %>% 
+  mutate(
+    kclust = map(
+      k, 
+      ~ kmeans(
+        select(employed_transformed, -occupation), 
+        centers = .x, nstart = 10
+      )
+    ),
+    glanced = map(kclust, glance)
+  ) %>% 
+  unnest(glanced) %>% 
+  ggplot(aes(k, tot.withinss)) +
+  geom_line(alpha = 0.8) + 
+  geom_point(size = 2) + 
+  geom_vline(xintercept = 5, col = "red", alpha = 0.5)
+```
+
+because k = 5 seems to be the elbow point. 
+To fully understand how this plot is made, you need to know:
+
+1. Functional programming and the {purrr} package
+
+2. The glance() function from the {broom} package (tidy() and augment() are also good to know)
+
+3. list-column
+
+4. nest() and unnest() from the {tidyr} package
+
+Then, we can go ahead and run the k-means clustering algorithm and visualize the result as follows. 
+Notice that, besides Black or African American and Asian attributes, Women is mapped to the size of a point.
+
+```{r message=FALSE, warning=FALSE}
+p <- kmeans(
+  select(employed_transformed, -occupation), centers = 5, nstart = 10
+) %>% 
+  augment(employed_transformed) %>% 
+  ggplot(
+    aes(
+      x = asian, y = black_or_african_american, size = women,
+      col = .cluster, name = occupation)
+  ) +
+  geom_point(alpha = 0.4) + 
+  labs(x = "Asian", y = "Black or African American")
+```
+
+```{r}
+plotly::ggplotly(p)
+```
+
+Also notice that the ggplotly() function from the {plotly} package can be used to convert a ggplot object to a plotly object, which allows you to hover your mouse over individual data points to see more details. 
+
+
+Now, you can draw your own conclusion on how race and gender impact occupation clustering by reading and touching this interactive plot.

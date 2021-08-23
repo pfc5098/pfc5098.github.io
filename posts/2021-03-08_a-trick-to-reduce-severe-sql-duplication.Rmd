@@ -1,0 +1,156 @@
+---
+title: 'A Trick to Reduce Severe SQL Duplication'
+output:
+  html_document:
+    theme: darkly
+editor_options: 
+  chunk_output_type: inline
+---
+
+#### [Peng Chen](/index.html)
+#### 2021-03-08
+
+If you want the trick now, jump over to the summary section and see if we feel the same.
+
+# Two forms of data
+
+## Long form
+
+Suppose we have a dataset, df, simulated as
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+
+set.seed(123)
+menu <- c("beef", "chicken", "salmon", "broccoli", "apple")
+df <- tibble(
+  customer_id = sample(x = 7, size = 20, replace = TRUE), 
+  food = sample(x = menu, size = 20, replace = TRUE)
+) %>% 
+  distinct() %>% 
+  arrange(customer_id)
+
+df
+```
+
+and would like to transform it to the following form.
+
+## Wide form
+
+```{r}
+df %>% 
+  mutate(value = 1) %>% 
+  pivot_wider(
+    names_from = food, values_from = value, values_fill = 0, names_sort = TRUE
+  )
+```
+
+Both forms carry the same information, food items ordered by each customer.
+
+This sort of transformation is particularly useful in AI/ML settings and is often referred as dummy variable creation or one-hot encoding, and you have already seen this can be easily done using R. But what if the long-form table is stored in a database and you have to transform it using SQL?
+
+# Same transformation in a database
+
+Well, let us create an in-memory database
+
+```{r}
+library(RSQLite)
+library(connections)
+
+con <- connection_open(SQLite(), "customer_and_food.sqlite")
+```
+
+throw in the table
+
+```{r}
+dbWriteTable(con, "customer_and_food", df, overwrite = TRUE)
+```
+
+and try it out.
+
+## Use SQL directly
+
+```{sql connection=con}
+SELECT 
+  customer_id,
+  MAX(CASE WHEN food = "apple" THEN 1 ELSE 0 END) AS apple,
+  MAX(CASE WHEN food = "beef" THEN 1 ELSE 0 END) AS beef,
+  MAX(CASE WHEN food = "broccoli" THEN 1 ELSE 0 END) AS broccoli,
+  MAX(CASE WHEN food = "chicken" THEN 1 ELSE 0 END) AS chicken,
+  MAX(CASE WHEN food = "salmon" THEN 1 ELSE 0 END) AS salmon
+FROM 
+  customer_and_food
+GROUP BY 
+  customer_id
+```
+
+The SQL code does not look so bad. But who wants to eat apple, beef, broccoli, chicken, and salmon everyday? (at least not me ... 🤣) What if we have thousands of food items to record? Do we have to copy and paste
+
+```{sql connection=con, eval=FALSE}
+MAX(CASE WHEN food = "food_i" THEN 1 ELSE 0 END) AS food_i
+```
+
+for a thousand times and perhaps blow up our SQL scripts and introduce some errors along the way?
+
+I am sure some SQL experts can eliminate this redundancy using SQL itself. But I prefer the following trick.
+
+## Use SQL through dbplyr
+
+```{r}
+tbl(con, "customer_and_food") %>% 
+  mutate(value = 1) %>% 
+  pivot_wider(
+    names_from = food, values_from = value, values_fill = 0, names_sort = TRUE
+  )
+```
+
+Wait, what? Is this SQL? Yes, it is.
+
+```{r}
+tbl(con, "customer_and_food") %>% 
+  mutate(value = 1) %>% 
+  pivot_wider(
+    names_from = food, values_from = value, values_fill = 0, names_sort = TRUE
+  ) %>% 
+  show_query()
+```
+
+The same (kinda) SQL code is automatically generated from the {dplyr} code, powered by its {dbplyr} backend,
+and then used to communicate with the database.
+
+What is the benefit? 
+Well, since the {dplyr} code will not grow any longer, we can quietly order some pizza, and no one will notice 🤐🤫🤫.
+
+```{r}
+connection_close(con) # disconnect from the database
+```
+
+# Summary
+
+For one-hot-encoding-like operations, the length of your SQL scripts 
+```{sql connection=con, eval= FALSE}
+SELECT 
+  customer_id,
+  MAX(CASE WHEN food = "apple" THEN 1 ELSE 0 END) AS apple,
+  MAX(CASE WHEN food = "beef" THEN 1 ELSE 0 END) AS beef,
+  MAX(CASE WHEN food = "broccoli" THEN 1 ELSE 0 END) AS broccoli,
+  MAX(CASE WHEN food = "chicken" THEN 1 ELSE 0 END) AS chicken,
+  MAX(CASE WHEN food = "salmon" THEN 1 ELSE 0 END) AS salmon
+FROM 
+  customer_and_food
+GROUP BY 
+  customer_id
+```
+will grow with the number of levels in the factor/categorical column to be transformed (unless you are good at writing functions and loops in SQL).
+When you have thousands of levels to transform, your SQL scripts tend to explode, which is not uncommon in many industries.
+
+But this will never happen if you use {dplyr} instead. 
+```{r, eval=FALSE}
+tbl(con, "customer_and_food") %>% 
+  mutate(value = 1) %>% 
+  pivot_wider(
+    names_from = food, values_from = value, values_fill = 0, names_sort = TRUE
+  )
+```
+ 
+

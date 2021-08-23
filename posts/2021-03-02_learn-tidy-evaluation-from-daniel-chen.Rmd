@@ -1,0 +1,237 @@
+---
+title: Learn Tidy Evaluation from Daniel Chen
+output:
+  html_document:
+    theme: darkly
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+ error = TRUE
+)
+```
+
+#### [Peng Chen](/index.html) 
+#### 2021-03-02
+
+
+Below is a summary made from Daniel Chen's recent talk ["Learning Tidy Evaluation by Reimplementing dplyr"](https://www.youtube.com/watch?v=WoBbQ5gsbgU&list=PL5J3U8bCF-4neATb4NwXohXN9gxiw4nop&index=1). The goal is to re-implement the dplyr::select() function and will be achieved through four attempts.
+
+To make these notes as concise as possible, we load
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(rlang)
+```
+
+and will use the iris dataset for testing.
+
+```{r}
+iris %>% head()
+```
+
+# Attempt 1
+
+## Function definition
+
+```{r}
+select_1 <- function(data, col) {
+  col_position <- match(as.character(col), names(data))
+  data[, col_position, drop = FALSE]
+}
+```
+
+To understand match(), see
+
+```{r}
+match(c("c", "a"), c("a", "b", "c"))
+```
+
+This is useful for selecting multiple columns because it preserve the selection order. Thus, it is better than the which() function
+
+```{r}
+which(c("a", "b", "c") %in% c("c", "a"))
+```
+
+## Test 1
+
+```{r}
+select_1(iris, "Species") %>% head(3)
+```
+
+## Test 2
+
+```{r}
+select_1(iris, Species) %>% head(3)
+```
+
+The second test fails because variable Species is never defined in the function. In other words
+
+```{r, eval=FALSE}
+as.character(Species)
+```
+
+can not be eveluated, unlike
+
+```{r}
+as.character("Species")
+```
+
+# Attempt 2
+
+The solution is to capture your code as an expression (without evaluating it), which can be manipulated later, such as being converted to a string.
+
+## Function definition
+
+```{r}
+select_2 <- function(data, col) {
+  col <- enexpr(col)
+  col_position <- match(as.character(col), names(data))
+  data[, col_position, drop = FALSE]
+}
+```
+
+## Test
+
+```{r}
+select_2(iris, Species) %>% head(3)
+```
+
+It works because the following code can be evaluated.
+
+```{r}
+as.character(expr(Species))
+```
+
+Next, we can generalize the function to select mutiple columns using dot-dot-dot.
+
+# Attempt 3
+
+## Function definition
+
+```{r}
+select_3 <- function(data, ...) {
+  cols <- rlang::enexprs(...)
+  cols_char <- as.vector(cols, mode = "character")
+  cols_positions <- match(cols_char, names(data))
+  data[, cols_positions, drop = FALSE]
+}
+```
+
+## Test 1
+
+```{r}
+select_3(iris, Species, Sepal.Width, Petal.Length) %>% head(3)
+```
+
+## Test 2
+
+```{r}
+col_name <- "Species"
+
+select_3(iris, col_name, Sepal.Width, Petal.Length) %>% head(3)
+```
+
+This time, the second test fails because
+
+```{r}
+cols <- exprs(col_name, Sepal.Width, Petal.Length)
+cols
+```
+
+```{r}
+as.vector(cols, mode = "character")
+```
+
+Code col_name is captured as expression col_name, and it has nothing to do with what you want, the "Species" string.
+
+Even if you evaluate expression col_name, it will only work in the global environment because variable col_name is not defined in the function environment. Therefore, the solution is to capture the dot-dot-dot as quosures (expressions + their environments) and then evaluate the quosures.
+
+# Attempt 4
+
+## Function definition
+
+```{r}
+select_4 <- function(data, ...) {
+  cols <- enquos(...)
+  vars <- set_names(seq_along(data), names(data)) %>% as.list()
+  col_char_num <- map(cols, eval_tidy, vars)
+  cols_positions <- map_int(
+    col_char_num,
+    function(x) ifelse(is.character(x), vars[[x]], x)
+  )
+  data[, cols_positions, drop = FALSE]
+}
+```
+
+There are quite a few changes in the new function. But they are easy to understand by checking the test below.
+
+## Test
+
+```{r}
+select_4(iris, col_name, Sepal.Length, "Petal.Width") %>% head(3)
+```
+
+Here we have it, a pretty robust re-implementation of the dplyr::select() function.
+
+To simulate what is happening inside the function, see
+
+```{r}
+(cols <- quos(col_name, Sepal.Length, "Petal.Width"))
+```
+
+Notice each expression is captured together with its environment.
+
+```{r}
+data <- iris
+(vars <- set_names(seq_along(data), names(data)) %>% as.list())
+```
+
+```{r}
+(col_char_num <- map(cols, eval_tidy, data = vars))
+```
+
+Function eval_tidy() can be used to evaluate a quosure (an expression bundled with an environment), which also takes an additional argument, data. If data is supplied, objects in the data mask always have precedence over the quosure environment, i.e. the data masks the environment. When eval_tidy() is applied to quo(col_name), it first searches the name col_name inside list vars, then finds no match, and then evaluates the quosure according to the quosure environment, where col_name = "Species".
+
+```{r}
+eval_tidy(quo(col_name), data = vars)
+```
+
+When eval_tidy() is applied to quo(Sepal.Length), it first searches the name Sepal.Length inside list vars, then finds a match with value 1.
+
+```{r}
+eval_tidy(quo(Sepal.Length), data = vars)
+```
+
+Lastly, the string value "Petal.Width" is always evaluated as itself.
+
+```{r}
+eval_tidy(quo("Petal.Width"), data = vars)
+```
+
+Based on the elements in col_char_num, it is not difficult to understand how the following code finds the correct column positions.
+
+```{r}
+(
+  cols_positions <- map_int(
+    col_char_num,
+    function(x) ifelse(is.character(x), vars[[x]], x)
+  )
+)
+```
+
+# Five big ideas of tidy evaluation
+
+This summary omits lots of details in tidy evaluation. I strongly recommend [Hadley's 5 big ideas of tidy evaluation video](https://www.youtube.com/watch?v=nERXS3ssntw) if you are new to these ideas, which is only 5-minute long. Below are the big five 😀
+
+1.  R code is a tree
+
+2.  Capture the tree by quoting
+
+3.  Unquoting makes it easy to build trees
+
+4.  Quote + unquote
+
+5.  Quosures capture expression & environment

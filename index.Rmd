@@ -6,6 +6,27 @@ output:
     theme: darkly
 ---
 
-------------------------------------------------------------------------
+# {.tabset .tabset-fade .tabset-pills}
+
+## About Me
 
 Hi there, welcome! My names is Peng, and I work in the Life Sciences industry. In my spare time, I enjoy exploring recent advances in the data science, AI/ML, and programming. If you would like to know more about me, please find my resume [here](docs/Resume_Peng_Chen.pdf).
+
+## Recommended
+
+- [R for Data Science](https://r4ds.had.co.nz/)
+- [Advanced R](https://adv-r.hadley.nz/)
+- [R Packages](https://r-pkgs.org/)
+- [Tidy Modeling with R](https://www.tmwr.org/)
+- [Tidyverse Blog](https://www.tidyverse.org/blog/)
+- [Applied Predictive Modeling](http://appliedpredictivemodeling.com/)
+- [Computer Age Statistical Inference](https://web.stanford.edu/~hastie/CASI/)
+
+## Posts
+
+- [A Trick to Reduce Severe SQL Duplication](posts/2021-03-08_a-trick-to-reduce-severe-sql-duplication.html)
+- [Explore Demographic Empolyment Data with Julia Silge](posts/2021-03-03_explore-demographic-empolyment-data-with-julia-silge.html)
+- [Learn Tidy Evaluation from Daniel Chen](posts/2021-03-02_learn-tidy-evaluation-from-daniel-chen.html)
+
+
+
