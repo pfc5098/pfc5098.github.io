@@ -22,11 +22,7 @@ Hi there, welcome! My names is Peng, and I work in the Life Sciences industry. I
 - [Applied Predictive Modeling](http://appliedpredictivemodeling.com/)
 - [Computer Age Statistical Inference](https://web.stanford.edu/~hastie/CASI/)
 
-## Posts
 
-- [A Trick to Reduce Severe SQL Duplication](posts/2021-03-08_a-trick-to-reduce-severe-sql-duplication.html)
-- [Explore Demographic Empolyment Data with Julia Silge](posts/2021-03-03_explore-demographic-empolyment-data-with-julia-silge.html)
-- [Learn Tidy Evaluation from Daniel Chen](posts/2021-03-02_learn-tidy-evaluation-from-daniel-chen.html)
 
 
 
