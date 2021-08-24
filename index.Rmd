@@ -10,7 +10,7 @@ output:
 
 ## About Me
 
-Hi there, welcome! My names is Peng, and I work in the Life Sciences industry. In my spare time, I enjoy exploring recent advances in the data science, AI/ML, and programming. If you would like to know more about me, please find my resume [here](docs/Resume_Peng_Chen.pdf).
+Hi there, welcome! My names is Peng, and I work in the Life Sciences industry. In my spare time, I enjoy exploring recent advances in the data science, AI/ML, and programming. If you would like to know more about me, please find my resume [here](docs/peng-chen-resume.pdf).
 
 ## Recommended
 
