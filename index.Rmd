@@ -21,6 +21,7 @@ Hi there, welcome! My names is Peng, and I work in the Life Sciences industry. I
 - [Tidyverse Blog](https://www.tidyverse.org/blog/)
 - [Applied Predictive Modeling](http://appliedpredictivemodeling.com/)
 - [Computer Age Statistical Inference](https://web.stanford.edu/~hastie/CASI/)
+- [Introduction to Probability](https://ocw.mit.edu/resources/res-6-012-introduction-to-probability-spring-2018/index.htm)
 
 
 
